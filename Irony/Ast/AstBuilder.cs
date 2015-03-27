@@ -111,7 +111,11 @@ namespace Irony.Ast {
 				// IAstNodeInit.Init() method on node object. But we do call AstNodeCreated custom event on term.
 			} else {
 				//Invoke the default creator compiled when we verified the data
-				parseNode.AstNode = config.DefaultNodeCreator();
+				try {
+					parseNode.AstNode = config.DefaultNodeCreator();
+				} catch (Exception ex) {
+					throw new Exception(String.Format("Could not construct the AST Node of type {0} because of an error.", config.NodeType), ex);
+				}
 
 				//Initialize node
 				var iInit = parseNode.AstNode as IAstNodeInit;
@@ -123,15 +127,12 @@ namespace Irony.Ast {
 			term.OnAstNodeCreated(parseNode);
 		} //method
 
-		//Contributed by William Horner (wmh)
 		private DefaultAstNodeCreator CompileDefaultNodeCreator(Type nodeType) {
-			ConstructorInfo constr = nodeType.GetConstructor(Type.EmptyTypes);
-			DynamicMethod method = new DynamicMethod("CreateAstNode", nodeType, Type.EmptyTypes);
-			ILGenerator il = method.GetILGenerator();
-			il.Emit(OpCodes.Newobj, constr);
-			il.Emit(OpCodes.Ret);
-			var result = (DefaultAstNodeCreator) method.CreateDelegate(typeof (DefaultAstNodeCreator));
-			return result;
+			return () => {
+				const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+				ConstructorInfo constr = nodeType.GetConstructor(flags, null, Type.EmptyTypes, null);
+				return constr.Invoke(new object[0]);
+			};
 		}
 
 /*
